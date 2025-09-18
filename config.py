@@ -32,6 +32,15 @@ class BaseConfig:
     # Rate limit
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "60 per minute")
 
+    # OTP / Reset settings
+    OTP_TTL_SECONDS = int(os.getenv("OTP_TTL_SECONDS", "600"))  # 10 min
+    OTP_RESEND_SECONDS = int(os.getenv("OTP_RESEND_SECONDS", "60"))  # cooldown renvoi
+    OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))  # essais max
+
+    RESET_TOKEN_TTL_SECONDS = int(os.getenv("RESET_TOKEN_TTL_SECONDS", "900"))  # 15 min
+    OTP_EMAIL_TEMPLATE = os.getenv("OTP_EMAIL_TEMPLATE", "templates/email/otp.html")
+    RESET_EMAIL_TEMPLATE = os.getenv("RESET_EMAIL_TEMPLATE", "templates/email/reset_otp.html")
+
     # S3
     S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL")
     S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")

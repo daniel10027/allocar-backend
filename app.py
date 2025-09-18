@@ -1,4 +1,4 @@
-import os
+from livereload import Server
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -12,6 +12,7 @@ from extensions.cache import cache
 from extensions.limiter import limiter
 from extensions.logger import init_logging
 from extensions.socketio import socketio
+from extensions.celery import init_celery, celery_app
 
 from common.errors import register_error_handlers
 
@@ -36,13 +37,9 @@ from integrations.orange_money.webhook import blp as OMWebhookBlueprint
 from integrations.mtn_momo.webhook import blp as MTNWebhookBlueprint
 from integrations.stripe.webhook import blp as StripeWebhookBlueprint
 
-from realtime import events  # noqa: F401  (juste pour importer et enregistrer les handlers)
-
-
-
-
-
 load_dotenv()
+
+from realtime import events  # noqa: F401  (juste pour importer et enregistrer les handlers)
 
 def create_app():
     app = Flask(__name__)
@@ -70,6 +67,7 @@ def create_app():
     cache.init_app(app)
     limiter.init_app(app)
     socketio.init_app(app, cors_allowed_origins=origins)
+    init_celery(app)
 
     # Blueprints
     api.register_blueprint(UsersBlueprint, url_prefix="/api/v1/users")
@@ -101,6 +99,7 @@ def create_app():
         return jsonify({"status": "ok"}), 200
 
     register_error_handlers(app)
+    import domain.users.tasks  # noqa: F401
     return app
 
 
@@ -116,3 +115,5 @@ if __name__ == "__main__":
         allow_unsafe_werkzeug=True,
         debug=debug,
     )
+    server = Server(app.wsgi_app)
+    server.serve()

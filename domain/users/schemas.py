@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, validate
 
 class RegisterSchema(Schema):
     email = fields.Email(required=False)
@@ -25,3 +25,32 @@ class UserOutSchema(Schema):
     rating_avg = fields.Float()
     rating_count = fields.Integer()
     created_at = fields.DateTime()
+
+class OTPRequestSchema(Schema):
+    email = fields.Email(required=False, allow_none=True)
+    phone = fields.String(required=False, allow_none=True)
+
+class OTPVerifySchema(Schema):
+    channel = fields.String(required=True, validate=validate.OneOf(["email","phone"]))
+    identifier = fields.String(required=True)  # email ou phone selon channel
+    code = fields.String(required=True)
+
+class RequestResetSchema(Schema):
+    identifier = fields.String(required=True)  # email ou phone
+    channels = fields.List(fields.String(validate=validate.OneOf(["email","sms"])), required=False, load_default=["email"])
+
+class VerifyResetOTPSchema(Schema):
+    identifier = fields.String(required=True)
+    channel = fields.String(required=True, validate=validate.OneOf(["email","sms"]))
+    code = fields.String(required=True)
+
+class ResetPasswordSchema(Schema):
+    identifier = fields.String(required=True)
+    reset_token = fields.String(required=True)
+    new_password = fields.String(required=True, validate=validate.Length(min=8))
+
+class ChangePasswordSchema(Schema):
+    old_password = fields.String(required=True)
+    new_password = fields.String(required=True, validate=validate.Length(min=8))
+
+

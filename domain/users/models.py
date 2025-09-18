@@ -39,5 +39,5 @@ class User(db.Model, UUIDMixin):
             "is_phone_verified": self.is_phone_verified,
             "rating_avg": float(self.rating_avg or 0),
             "rating_count": self.rating_count,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at if self.created_at else None,
         }

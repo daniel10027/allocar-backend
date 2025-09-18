@@ -1,14 +1,22 @@
 from flask_smorest import Blueprint
 from common.responses import ok
 from common.errors import APIError
-from .schemas import RegisterSchema, LoginSchema, UserOutSchema
-from .services import register_user, authenticate
+from .schemas import RegisterSchema, LoginSchema, UserOutSchema, OTPRequestSchema, OTPVerifySchema
+from .services import register_user, authenticate, request_otp_for_user, verify_otp_and_mark
 from extensions.db import db
 from flask_jwt_extended import jwt_required, get_jwt_identity, create_refresh_token, create_access_token, get_jwt
 from datetime import datetime, timezone
 from common.jwt_blocklist import revoke
 from extensions.s3 import get_s3_client
 from flask import current_app
+from .schemas import (
+    RequestResetSchema, VerifyResetOTPSchema, ResetPasswordSchema, ChangePasswordSchema
+)
+from .services import (
+    request_password_reset, verify_reset_otp_and_issue_token,
+    reset_password_with_token, change_password
+)
+
 
 blp = Blueprint("users", __name__, description="Users & Auth")
 
@@ -76,3 +84,59 @@ def me_photo_presign():
         ExpiresIn=3600,
     )
     return ok({"upload_url": url, "key": key})
+
+@blp.route("/auth/request-otp", methods=["POST"])
+@jwt_required()
+@blp.arguments(OTPRequestSchema)
+def request_otp(payload):
+    uid = get_jwt_identity()
+    from .models import User
+    user = db.session.get(User, uid)
+    if not user:
+        raise APIError("not_found", "User not found", 404)
+    # On autorise de renvoyer sur n’importe quel canal renseigné au compte
+    email = payload.get("email") if payload.get("email") else user.email
+    phone = payload.get("phone") if payload.get("phone") else user.phone
+    request_otp_for_user(user, email if email else None, phone if phone else None)
+    return ok({"sent": True})
+
+@blp.route("/auth/verify-otp", methods=["POST"])
+@jwt_required()
+@blp.arguments(OTPVerifySchema)
+def verify_otp(payload):
+    uid = get_jwt_identity()
+    from .models import User
+    user = db.session.get(User, uid)
+    if not user:
+        raise APIError("not_found", "User not found", 404)
+    verify_otp_and_mark(user, payload["channel"], payload["identifier"], payload["code"])
+    return ok({
+        "email_verified": user.is_email_verified,
+        "phone_verified": user.is_phone_verified
+    })
+
+@blp.route("/auth/password/request-reset", methods=["POST"])
+@blp.arguments(RequestResetSchema)
+def password_request_reset(payload):
+    request_password_reset(payload["identifier"], payload.get("channels", ["email"]))
+    return ok({"sent": True})
+
+@blp.route("/auth/password/verify-reset-otp", methods=["POST"])
+@blp.arguments(VerifyResetOTPSchema)
+def password_verify_reset_otp(payload):
+    token = verify_reset_otp_and_issue_token(payload["identifier"], payload["channel"], payload["code"])
+    return ok({"reset_token": token})
+
+@blp.route("/auth/password/reset", methods=["POST"])
+@blp.arguments(ResetPasswordSchema)
+def password_reset(payload):
+    reset_password_with_token(payload["identifier"], payload["reset_token"], payload["new_password"])
+    return ok({"reset": True})
+
+@blp.route("/auth/password/change", methods=["POST"])
+@jwt_required()
+@blp.arguments(ChangePasswordSchema)
+def password_change(payload):
+    uid = get_jwt_identity()
+    change_password(uid, payload["old_password"], payload["new_password"])
+    return ok({"changed": True})
